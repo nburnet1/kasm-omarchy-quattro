@@ -99,7 +99,8 @@ python3 ~/omarchy-dotfiles/scripts/configure-ignition-designer.py --scale 1
 python3 ~/omarchy-dotfiles/scripts/configure-ignition-designer.py --scale 1 --check
 ```
 
-Select an entry with `--application 'ENTRY NAME'` if there is more than one.
+The dotfiles installer runs this setup automatically once Designer Launcher is
+initialized. Shared defaults and every existing Designer entry are updated.
 Open Designer through its desktop entry so its scale setting applies to both
 the launcher and the project editor. The dotfiles helper preserves unrelated
 launcher settings and backs up changed files locally. See its README for undo
