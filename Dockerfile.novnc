@@ -1,0 +1,23 @@
+# Isolated direct-Wayland experiment, derived from the preserved shipping image.
+ARG BASE_IMAGE=kasm-omarchy-quattro:4.5.0-kasmvnc-rollback-20261120
+FROM ${BASE_IMAGE}
+USER root
+ARG NOVNC_COMMIT=a8dfd6a3ea3c74244f5ebdaa5a7f1023007a7820
+RUN git clone https://github.com/novnc/noVNC.git /opt/noVNC \
+    && git -C /opt/noVNC checkout --detach "$NOVNC_COMMIT" \
+    && rm -rf /opt/noVNC/.git \
+    && python -m venv /opt/novnc-proxy \
+    && /opt/novnc-proxy/bin/pip install --no-cache-dir 'websockify==0.13.0'
+COPY --chmod=755 scripts/start-headless.sh /dockerstartup/custom_startup.sh
+COPY --chmod=755 scripts/xwayland-env.py /usr/local/bin/omarchy-xwayland-env
+COPY --chmod=755 scripts/import-session-env.py /usr/local/bin/omarchy-import-session-env
+COPY --chmod=755 scripts/uwsm-app /usr/local/bin/uwsm-app
+COPY scripts/novnc-kasm.js /opt/noVNC/app/novnc-kasm.js
+COPY scripts/novnc-auth.py /usr/local/share/omarchy-kasm/omarchy_novnc_auth.py
+COPY scripts/install-novnc-integration.py /tmp/install-novnc-integration.py
+RUN python /tmp/install-novnc-integration.py
+ENV OMARCHY_STREAM_BACKEND=novnc OMARCHY_RESOLUTION=1920x1080
+LABEL org.omarchy.streaming="novnc-wayvnc-experimental"
+USER 1000
+ENTRYPOINT ["/dockerstartup/kasm_default_profile.sh", "/dockerstartup/custom_startup.sh"]
+CMD []

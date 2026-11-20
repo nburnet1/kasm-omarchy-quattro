@@ -1,0 +1,57 @@
+# Build Dockerfile, then Dockerfile.runtime first. BASE_IMAGE must be Code-free.
+ARG BASE_IMAGE=kasm-omarchy-quattro:runtime
+FROM ${BASE_IMAGE}
+USER root
+RUN pacman -S --noconfirm --needed wayvnc jq inotify-tools imagemagick fltk1.3 qt6-imageformats ttf-jetbrains-mono-nerd socat xdotool \
+    && pacman -Sw --noconfirm tigervnc \
+    && for package in /var/cache/pacman/pkg/tigervnc-*.pkg.tar.zst; do \
+         bsdtar -xOf "$package" usr/bin/vncviewer > /usr/local/bin/vncviewer; \
+       done \
+    && chmod 755 /usr/local/bin/vncviewer \
+    && cp -r /usr/share/omarchy/default/fonts/omarchy /usr/share/fonts/ \
+    && fc-cache -f
+COPY scripts/headless-render-node.cpp /tmp/headless-render-node.cpp
+RUN test "$(pkg-config --modversion aquamarine)" = "0.16.0" \
+    && g++ -shared -fPIC /tmp/headless-render-node.cpp -lEGL -o /usr/local/lib/omarchy-headless-render-node.so
+# Kasm supplies en_US.UTF-8 to workspace sessions.
+RUN localedef -i en_US -f UTF-8 en_US.UTF-8 && pacman -S --noconfirm --needed xorg-xrandr
+RUN pacman -S --noconfirm --needed \
+      xdg-terminal-exec gum starship bash-completion fzf zoxide ripgrep fd eza bat \
+      adwaita-cursors adwaita-icon-theme gsettings-desktop-schemas \
+      tmux btop less man-db noto-fonts noto-fonts-emoji \
+    && install -d /usr/share/xdg-terminal-exec /usr/local/share/applications \
+    && cp /usr/share/omarchy/default/xdg-terminal-exec/hyprland-xdg-terminals.list /usr/share/xdg-terminal-exec/ \
+    && cp /usr/share/omarchy/applications/foot.desktop /usr/local/share/applications/ \
+    && for command in /usr/share/omarchy/bin/*; do ln -sf "$command" "/usr/local/bin/${command##*/}"; done
+COPY --chmod=755 scripts/install-omarchy-runtime.sh /tmp/install-omarchy-runtime.sh
+RUN /tmp/install-omarchy-runtime.sh
+RUN install -d -o 1000 -g 0 -m 700 /run/user/1000
+COPY --chmod=755 scripts/install-omarchy-release.sh /tmp/install-omarchy-release.sh
+RUN /tmp/install-omarchy-release.sh
+COPY packaging/omarchy-expected-apps.packages /usr/local/share/omarchy-kasm/expected-apps.packages
+COPY packaging/omarchy-4.5.0-container.patch /usr/local/share/omarchy-kasm/omarchy-4.5.0-container.patch
+COPY --chmod=755 scripts/install-essentials.sh /tmp/install-essentials.sh
+RUN --mount=type=cache,id=omarchy-essentials-pacman,target=/var/cache/pacman/pkg,sharing=locked \
+    OMARCHY_ALLOW_DIRECT_PACMAN=1 pacman -Syu --noconfirm \
+    && /tmp/install-essentials.sh \
+    && test "$(pkg-config --modversion aquamarine)" = 0.16.0 \
+    && test "$(pacman -Q hyprland)" = 'hyprland 0.57.2-1' \
+    && test "$(pacman -Q omarchy)" = 'omarchy 4.5.0-3'
+COPY --chmod=755 scripts/start-headless.sh /dockerstartup/custom_startup.sh
+COPY --chmod=755 scripts/uwsm-app /usr/local/bin/uwsm-app
+COPY scripts/wayvnc.ini /etc/omarchy-wayvnc.ini
+COPY src/common/install/kasm_vnc/kasmvnc.yaml /etc/kasmvnc/kasmvnc.yaml
+COPY --chmod=755 scripts/sync-display.py /usr/local/bin/omarchy-sync-display.py
+COPY scripts/kasm-bindings.lua /usr/local/share/omarchy-kasm/bindings.lua
+COPY --chmod=755 scripts/configure-user.sh /usr/local/bin/omarchy-configure-user
+COPY --chmod=755 scripts/configure-editor.sh /usr/local/bin/omarchy-configure-editor
+LABEL org.opencontainers.image.version="4.5.0-essentials" \
+      org.opencontainers.image.source="https://github.com/omacom/omarchy" \
+      org.opencontainers.image.revision="ac2690cd7be4f47e4a255f5e2e78d904d436b068"
+LABEL com.kasmweb.image="true" com.kasmweb.gpu_acceleration_egl="nvidia"
+LABEL org.omarchy.kasm.profile="essentials"
+ENV OMARCHY_PATH=/usr/share/omarchy \
+    PATH=/usr/share/omarchy/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    NVIDIA_DRIVER_CAPABILITIES=graphics,utility,display \
+    AQ_HEADLESS_RENDER_NODE=/dev/dri/renderD128
+USER 1000

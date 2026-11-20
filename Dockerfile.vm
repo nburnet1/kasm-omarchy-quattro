@@ -1,0 +1,6 @@
+FROM kasm-omarchy-quattro:runtime
+USER root
+RUN pacman -S --noconfirm --needed qemu-system-x86 qemu-ui-gtk qemu-hw-display-virtio-gpu qemu-img edk2-ovmf && install -d -o 1000 -g 0 /vm
+COPY --chmod=755 scripts/start-omarchy-vm.sh /dockerstartup/custom_startup.sh
+ENV OMARCHY_VM_MEMORY=4096 OMARCHY_VM_CPUS=2 OMARCHY_VM_DISK_SIZE=40G
+USER 1000

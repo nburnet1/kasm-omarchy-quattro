@@ -1,0 +1,23 @@
+# Kasm-managed direct Wayland/NVENC streaming, including the native Kasm audio relay.
+ARG BASE_IMAGE=kasm-omarchy-quattro:4.5.0-audio
+FROM ${BASE_IMAGE}
+USER root
+RUN python -m venv /opt/selkies \
+    && /opt/selkies/bin/pip install --no-cache-dir 'selkies==2.2.1'
+COPY scripts/install-selkies-integration.py /tmp/install-selkies-integration.py
+COPY scripts/selkies-kasm.js /usr/local/share/omarchy-kasm/selkies-kasm.js
+COPY scripts/selkies-disconnected.html /usr/local/share/omarchy-kasm/selkies-disconnected.html
+RUN /opt/selkies/bin/python /tmp/install-selkies-integration.py
+COPY --chmod=755 scripts/run-selkies.py /usr/local/bin/omarchy-run-selkies
+COPY --chmod=755 scripts/start-selkies.sh /usr/local/bin/omarchy-start-selkies
+COPY --chmod=755 scripts/xwayland-env.py /usr/local/bin/omarchy-xwayland-env
+COPY --chmod=755 scripts/import-session-env.py /usr/local/bin/omarchy-import-session-env
+COPY --chmod=755 scripts/uwsm-app /usr/local/bin/uwsm-app
+COPY --chmod=755 scripts/start-headless.sh /dockerstartup/custom_startup.sh
+ENV OMARCHY_STREAM_BACKEND=selkies \
+    NVIDIA_DRIVER_CAPABILITIES=graphics,utility,display,video
+LABEL org.omarchy.streaming="selkies-kasm-experimental" \
+      org.omarchy.selkies.version="2.2.1"
+USER 1000
+ENTRYPOINT ["/dockerstartup/kasm_default_profile.sh", "/dockerstartup/custom_startup.sh"]
+CMD []

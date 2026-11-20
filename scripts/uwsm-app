@@ -1,0 +1,11 @@
+#!/bin/bash
+# Container bridge for application launch: there is no systemd user manager.
+set -e
+[[ ${1:-} != -- ]] || shift
+# Our allocator shim belongs to Hyprland, not to the applications it starts.
+# Preserve any different preload/backend explicitly selected by the user.
+if [[ ${LD_PRELOAD:-} == /usr/local/lib/omarchy-headless-render-node.so ]]; then
+  unset LD_PRELOAD
+  [[ ${AQ_BACKEND:-} != headless ]] || unset AQ_BACKEND
+fi
+exec "$@"

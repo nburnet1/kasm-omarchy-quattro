@@ -1,0 +1,11 @@
+FROM kasm-omarchy-quattro:experimental
+USER root
+RUN ln -sf /usr/bin/Xkasmvnc /usr/bin/Xvnc || true \
+ && ln -sf /usr/bin/Xkasmvnc /usr/sbin/Xvnc || true \
+ && ln -sf /usr/bin/Xkasmvnc /usr/local/bin/Xvnc || true \
+ && ln -sf /usr/bin/kasmvncserver /usr/sbin/vncserver || true \
+ && ln -sf /usr/bin/kasmvncpasswd /usr/bin/vncpasswd || true \
+ && mkdir -p /usr/lib/perl5/5.44/site_perl /usr/local/share/perl5/site_perl \
+ && ( [ -d /usr/share/perl5/KasmVNC ] && cp -a /usr/share/perl5/KasmVNC /usr/lib/perl5/5.44/site_perl/ || true ) \
+ && ( [ -d /usr/share/perl5/KasmVNC ] && cp -a /usr/share/perl5/KasmVNC /usr/share/perl5/site_perl/ || true )
+USER 1000

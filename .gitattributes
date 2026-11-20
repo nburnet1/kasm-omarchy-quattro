@@ -1,0 +1,3 @@
+# Preserve whitespace that is meaningful in patch context and upstream snapshots.
+*.patch -whitespace
+src/common/** -whitespace

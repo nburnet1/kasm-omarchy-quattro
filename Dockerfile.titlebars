@@ -1,0 +1,16 @@
+# Build this after Dockerfile.headless; keep compiler tooling out of this layer.
+ARG BASE_IMAGE=kasm-omarchy-quattro:essentials-core
+FROM ${BASE_IMAGE} AS titlebars_builder
+USER root
+RUN omarchy-pkg-add cmake ninja && install -d -o 1000 -g 0 /tmp/titlebars-package
+COPY --chown=1000:0 packaging/titlebars/PKGBUILD /tmp/titlebars-package/PKGBUILD
+USER 1000
+WORKDIR /tmp/titlebars-package
+RUN makepkg --nodeps --noconfirm
+
+FROM ${BASE_IMAGE}
+USER root
+COPY --from=titlebars_builder /tmp/titlebars-package/omarchy-hyprland-titlebars-0.4.0-1.1-x86_64.pkg.tar.zst /tmp/titlebars.pkg.tar.zst
+RUN pacman -U --noconfirm /tmp/titlebars.pkg.tar.zst && rm /tmp/titlebars.pkg.tar.zst
+LABEL org.omarchy.kasm.titlebars-revision="929ed753a667dd7d13688e0c8b2d5c930f1babda"
+USER 1000

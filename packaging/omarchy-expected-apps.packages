@@ -1,0 +1,96 @@
+# Essentials shipping profile; verified by tests/verify-essentials.py.
+# Derived from Omarchy v4.5.0 core bindings, MIME defaults, and runtime scripts.
+# Install top-level packages and let pacman resolve libraries/dependencies.
+# See MINIMUM-PACKAGING.md for the feature contract and container constraints.
+
+# Official desktop runtime and settings; dependency closure is retained.
+omarchy
+omarchy-settings
+
+# Native terminal, config editor, prompts, shell, and secrets.
+foot
+neovim
+omarchy-nvim
+xdg-terminal-exec
+gum
+gnome-keyring
+starship
+bash-completion
+git
+jq
+perl
+sudo
+curl
+wget
+unzip
+less
+man-db
+fzf
+ripgrep
+fd
+bat
+eza
+zoxide
+tmux
+lazygit
+btop
+
+# Essential upstream app bindings and file associations.
+chromium
+nautilus
+nautilus-python
+imv
+evince
+mpv
+mpv-mpris
+
+# File chooser/sharing, screenshots, capture, backgrounds, idle, and clipboard.
+xdg-desktop-portal-hyprland
+xdg-desktop-portal-gtk
+hyprland-preview-share-picker
+omasnap
+grim
+slurp
+hyprpicker
+hyprsunset
+gpu-screen-recorder
+# Upstream-supported fallback: the headless Kasm output is not a KMS monitor.
+wf-recorder
+ffmpeg
+imagemagick
+owe
+ttfx
+wl-clipboard
+qt6-multimedia
+qt6-imageformats
+python-gobject
+inotify-tools
+socat
+
+# Default appearance, readable Latin text, icons, and emoji.
+adwaita-cursors
+adwaita-icon-theme
+gnome-themes-extra
+yaru-icon-theme
+woff2-font-awesome
+ttf-liberation
+ttf-jetbrains-mono-nerd-basic
+noto-fonts
+noto-fonts-emoji
+
+# Audio userland and support/installation workflows.
+pipewire
+pipewire-pulse
+wireplumber
+pamixer
+fastfetch
+inxi
+mise-bin
+yay
+
+# omarchy-hyprland-titlebars is built separately by Dockerfile.titlebars from
+# upstream v0.4.0, pinned and packaged for the exact Hyprland 0.57.2 ABI.
+
+# Locale expansion when needed: noto-fonts-cjk and relevant input-method packs.
+# VS Code and other additional editors are user/admin addons, not base packages.
+# The KasmVNC/WayVNC/render-node bridge remains a separate container dependency.

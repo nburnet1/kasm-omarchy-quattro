@@ -1,0 +1,29 @@
+# EXPERIMENTAL / NON-WORKING SCAFFOLD - Omarchy Quattro on Kasm
+# Goal: layer Kasm runtime onto Arch, then install Omarchy (quattro).
+# Major unknowns: KasmVNC on Arch, Wayland/Hyprland under Kasm, omarchy installer assumptions.
+
+ARG BASE_IMAGE=archlinux:base
+FROM ${BASE_IMAGE}
+
+ENV LANG=C.UTF-8 \
+    HOME=/home/kasm-default-profile \
+    STARTUPDIR=/dockerstartup \
+    INST_SCRIPTS=/dockerstartup/install
+
+# TODO: install KasmVNC + X/Wayland deps for Arch (no official kasmweb/core-arch)
+# TODO: copy/adapt startup scripts from kasmtech/workspaces-core-images:
+#   - kasm_default_profile.sh, vnc_startup.sh, kasm_startup.sh, generate_container_user, etc.
+# TODO: create kasm-user (uid 1000), permissions, /home/kasm-user runtime home
+
+RUN pacman -Syu --noconfirm && \
+    pacman -S --noconfirm --needed sudo git curl wget base-devel ca-certificates && \
+    pacman -Scc --noconfirm
+
+# TODO: install Omarchy Quattro non-interactively (upstream installer expects interactive/system environment)
+# RUN git clone --depth 1 -b quattro https://github.com/basecamp/omarchy.git /tmp/omarchy
+
+ENV HOME=/home/kasm-user
+WORKDIR /home/kasm-user
+# USER 1000
+# ENTRYPOINT ["/dockerstartup/kasm_default_profile.sh", "/dockerstartup/vnc_startup.sh", "/dockerstartup/kasm_startup.sh"]
+CMD ["bash"]

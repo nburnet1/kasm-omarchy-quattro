@@ -1,0 +1,18 @@
+# Add browser audio without rebuilding the compositor/titlebar layers.
+ARG BASE_IMAGE=kasm-omarchy-quattro:essentials-desktop
+FROM ${BASE_IMAGE}
+USER root
+# Same relay revision used by Kasm's core-image audio installer (amd64).
+RUN test "$(uname -m)" = x86_64 \
+    && command -v ffmpeg && command -v pactl \
+    && curl -fsSL --retry 3 https://kasmweb-build-artifacts.s3.amazonaws.com/kasm_websocket_relay/f056f949e79a55217ec44c8fc4c79418ada0c05e/kasm_websocket_relay_amd64_develop.f056f9.tar.gz -o /tmp/audio-relay.tar.gz \
+    && printf '%s  %s\n' 657dae0690855caff7c2aa61f0dfa3ff20dd3e50276cd4c85c9f22c4e7a8ecf8 /tmp/audio-relay.tar.gz | sha256sum -c - \
+    && mkdir -p /dockerstartup/jsmpeg \
+    && tar -xzf /tmp/audio-relay.tar.gz --strip-components=1 -C /dockerstartup/jsmpeg \
+    && chmod 755 /dockerstartup/jsmpeg/kasm_audio_out-linux \
+    && rm /tmp/audio-relay.tar.gz
+COPY --chmod=755 scripts/start-audio.sh /dockerstartup/start-audio.sh
+COPY --chmod=755 src/common/startup_scripts/vnc_startup.sh /dockerstartup/vnc_startup.sh
+ENV KASM_SVC_AUDIO=1
+LABEL org.omarchy.kasm.audio-relay-revision="f056f949e79a55217ec44c8fc4c79418ada0c05e"
+USER 1000

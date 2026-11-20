@@ -1,0 +1,11 @@
+# Measurement image only: both clients can attach to the same Hyprland output.
+# The entrypoint remains the existing noVNC startup; Selkies is started explicitly
+# by the benchmark after checking the installed backend and encoder capabilities.
+ARG BASE_IMAGE=kasm-omarchy-quattro:4.5.0-novnc-kasm-test
+FROM ${BASE_IMAGE}
+USER root
+RUN python -m venv /opt/selkies-test \
+    && /opt/selkies-test/bin/pip install --no-cache-dir 'selkies==2.2.1'
+ENV NVIDIA_DRIVER_CAPABILITIES=graphics,utility,display,video
+LABEL org.omarchy.streaming="selkies-measurement-only"
+USER 1000

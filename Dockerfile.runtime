@@ -1,0 +1,9 @@
+FROM kasm-omarchy-quattro:experimental
+USER root
+ARG OMARCHY_REF=v4.5.0
+RUN pacman -S --noconfirm --needed weston xorg-xdpyinfo \
+    && git clone --depth 1 --branch "$OMARCHY_REF" https://github.com/omacom/omarchy.git /usr/share/omarchy \
+    && test "$(git -C /usr/share/omarchy rev-parse HEAD)" = ac2690cd7be4f47e4a255f5e2e78d904d436b068
+COPY src/common/startup_scripts/kasm_default_profile.sh /dockerstartup/kasm_default_profile.sh
+RUN chown -R 1000:0 /home/kasm-user /home/kasm-default-profile && chmod +x /dockerstartup/kasm_default_profile.sh
+USER 1000

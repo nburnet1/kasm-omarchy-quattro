@@ -1,0 +1,20 @@
+--- a/omarchy-launch-browser
++++ b/omarchy-launch-browser
+@@ -39,9 +39,14 @@
+ fi
+ 
+ if ! omarchy-cmd-browser-handoff "$browser_exec" "${@/--private/$private_flag}"; then
+-  systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
+-    --property=StandardOutput=null --property=StandardError=null \
+-    uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
++  if [[ -S ${XDG_RUNTIME_DIR:-/run/user/$UID}/systemd/private ]]; then
++    systemd-run --user --quiet --collect --unit="omarchy-browser-$(date +%s%N)" \
++      --property=StandardOutput=null --property=StandardError=null \
++      uwsm-app -- "$browser_exec" "${@/--private/$private_flag}"
++  else
++    # Kasm supervises the graphical session without a systemd user manager.
++    setsid uwsm-app -- "$browser_exec" "${@/--private/$private_flag}" >/dev/null 2>&1 &
++  fi
+ fi
+ 
+ url=""

@@ -1,0 +1,48 @@
+# Installation media and virtual-machine disks
+*.iso
+*.qcow2
+*.img
+*.vmdk
+*.vdi
+
+# Generated build outputs and package archives
+/build/
+/dist/
+*.o
+*.so
+*.pkg.tar.*
+
+# Runtime logs and Python caches
+*.log
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local credentials and environment overrides
+.env
+.env.*
+!.env.example
+!.env.*.example
+*.key
+*.pem
+
+# Local editor / OS metadata
+.idea/
+.vscode/
+.DS_Store
+*~
+
+# Only the Kasm runtime inputs used by our Dockerfiles are vendored. Other
+# upstream distro examples/resources in the local checkout are not build inputs.
+/src/*
+!/src/README.md
+!/src/LICENSE.md
+!/src/common/
+/src/common/*
+!/src/common/startup_scripts/
+!/src/common/scripts/
+/src/common/scripts/*
+!/src/common/scripts/kasm_hook_scripts/
+!/src/common/install/
+/src/common/install/*
+!/src/common/install/kasm_vnc/
