@@ -58,8 +58,32 @@ with sync_playwright() as playwright:
     assert any(url.startswith(URL.replace('https:', 'wss:') + PREFIX + 'websockify') for url in sockets), sockets
     print('PASS: proxy session URL, injected HTTP auth, lifecycle notifications, NVENC/zero-copy video', flush=True)
 
+    page.mouse.move(200, 120)
+    frame.wait_for_function("""() => {
+        const input = window.webrtcInput;
+        return input && !input.use_browser_cursors && input._cursorImageBitmap
+            && getComputedStyle(input.element).cursor.startsWith('url("data:image/png;base64,')
+            && input.cursorDiv.classList.contains('kasm-selkies-video-cursor')
+            && getComputedStyle(input.cursorDiv).visibility === 'hidden';
+    }""", timeout=15000)
+    assert page.locator('#iframe-id').evaluate("e => getComputedStyle(e).cursor.startsWith('url(\"data:image/png;base64,')")
+    # Exercise focus/entry recovery and a native context's cursor reset without
+    # using the parent control panel as the workaround.
+    frame.evaluate("""() => {
+        window.dispatchEvent(new Event('blur'));
+        window.webrtcInput.element.style.cursor = 'auto';
+        window.frameElement.style.cursor = 'auto';
+        window.dispatchEvent(new Event('focus'));
+    }""")
+    assert frame.evaluate("getComputedStyle(window.webrtcInput.element).cursor.startsWith('url(\"data:image/png;base64,')")
+    assert page.locator('#iframe-id').evaluate("e => getComputedStyle(e).cursor.startsWith('url(\"data:image/png;base64,')")
+    frame.evaluate("window.webrtcInput.element.style.cursor = 'none'")
+    frame.wait_for_function("getComputedStyle(window.webrtcInput.element).cursor.startsWith('url(\"data:image/png;base64,')")
+    print('PASS: stream hides both browser and canvas pointers for the video-only cursor', flush=True)
+
     message(page, 'show_keyboard_controls')
     frame.locator('#kasm-selkies-keys').wait_for(state='visible')
+    assert frame.locator('#kasm-selkies-keys button').first.evaluate("e => getComputedStyle(e).cursor") != 'none'
     message(page, 'hide_keyboard_controls')
     frame.locator('#kasm-selkies-keys').wait_for(state='hidden')
     message(page, 'set_perf_stats', value=True)

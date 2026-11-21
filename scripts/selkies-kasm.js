@@ -50,21 +50,29 @@ if (embedded) {
         mac_cmd_as_ctrl: false, clipboard_in_enabled: clipIn, clipboard_out_enabled: clipOut,
         clipboard_seamless: allowed('clipboard_seamless'),
         use_css_scaling: !['true', '1'].includes(query.get('enable_hidpi')),
+        // Hide the browser pointer. The captured-video cursor is the sole
+        // pointer; suppress Selkies' separate canvas sprite below as well.
+        use_browser_cursors: false,
     };
     // Apply the dashboard's clipboard policy before the native clipboard sync starts.
     for (const [name, value] of Object.entries(preferences)) {
         try { localStorage.setItem(`${namespace}_${name}`, String(value)); } catch (_) { /* storage disabled */ }
     }
 
+    // A real transparent cursor avoids Electron/macOS losing cursor:none's
+    // hidden state when switching windows, while the video supplies the sprite.
+    const invisibleCursor = 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGklEQVR4nO3BAQEAAACCIP+vbkhAAQAAAO8GECAAARlDNO4AAAAASUVORK5CYII=") 0 0, none';
     const style = document.createElement('style');
     style.textContent = `
         #root, #touch-gamepad-host { display:none !important; }
+        html.kasm-selkies-streaming, html.kasm-selkies-streaming body { cursor:${invisibleCursor} !important; }
+        .kasm-selkies-video-cursor { visibility:hidden !important; }
         #kasm-selkies-stats, #kasm-selkies-keys {
             position:fixed;z-index:2147483647;background:#171923e8;color:#eee;
             font:12px/1.5 monospace;padding:9px;border:1px solid #666;border-radius:6px;
         }
         #kasm-selkies-stats { top:8px;right:8px;white-space:pre;pointer-events:none; }
-        #kasm-selkies-keys { bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:5px; }
+        #kasm-selkies-keys { bottom:8px;left:50%;transform:translateX(-50%);display:flex;gap:5px;cursor:auto; }
         #kasm-selkies-keys[hidden], #kasm-selkies-stats[hidden] { display:none !important; }
         #kasm-selkies-keys button { background:#303448;color:white;padding:6px 10px;border:1px solid #777;border-radius:4px; }
     `;
@@ -143,9 +151,68 @@ if (embedded) {
         native({type: 'settings', settings: {...preferences, video_crf: crf, framerate}});
     }
 
+    const hostFrame = window.frameElement;
+    const hostCursor = hostFrame && {
+        value: hostFrame.style.getPropertyValue('cursor'),
+        priority: hostFrame.style.getPropertyPriority('cursor'),
+    };
+    let cursorTarget = null, cursorObserver = null;
+
+    function hideLocalCursor() {
+        if (connected && cursorTarget && cursorTarget.style.getPropertyValue('cursor') !== invisibleCursor) {
+            cursorTarget.style.setProperty('cursor', invisibleCursor, 'important');
+        }
+    }
+
+    function syncCursorBoundary() {
+        document.documentElement.classList.toggle('kasm-selkies-streaming', connected);
+        if (hostFrame) {
+            if (connected) hostFrame.style.setProperty('cursor', invisibleCursor, 'important');
+            else if (hostCursor.value) hostFrame.style.setProperty('cursor', hostCursor.value, hostCursor.priority);
+            else hostFrame.style.removeProperty('cursor');
+        }
+        const target = connected ? window.webrtcInput?.element : null;
+        if (target !== cursorTarget) {
+            cursorObserver?.disconnect();
+            cursorTarget = target;
+            if (target) {
+                // Native input handlers reset the inline cursor during hover
+                // and cursor-shape updates. Keep our transparent image in force.
+                cursorObserver = new MutationObserver(hideLocalCursor);
+                cursorObserver.observe(target, {attributes: true, attributeFilter: ['style']});
+            }
+        }
+        hideLocalCursor();
+    }
+
+    // Electron can fall back to the parent iframe's cursor while focus/hit
+    // testing crosses the viewer boundary. Keep that boundary hidden too,
+    // without changing the Kasm control panel or taking keyboard focus.
+    for (const type of ['focus', 'pageshow', 'pointerover']) {
+        window.addEventListener(type, syncCursorBoundary);
+    }
+    document.addEventListener('visibilitychange', () => {
+        if (!document.hidden) syncCursorBoundary();
+    });
+
+    function useVideoCursor() {
+        const input = window.webrtcInput;
+        if (!connected || !input) return;
+        syncCursorBoundary();
+        input.cursorDiv.classList.add('kasm-selkies-video-cursor');
+        input.send('SET_NATIVE_CURSOR_RENDERING,1');
+    }
+
+    document.addEventListener('pointerlockchange', () => {
+        // The native handler turns video cursor painting off on unlock. Apply
+        // this adapter's single-video-cursor policy after that handler finishes.
+        if (!document.pointerLockElement) queueMicrotask(useVideoCursor);
+    });
+
     function stop(reason = 'Disconnected') {
         if (terminating) return;
         terminating = true; connected = false;
+        syncCursorBoundary();
         window.webrtcInput?.resetKeyboard();
         notify('connection_state', 'disconnected'); notify('disconnectrx', reason);
         window.selkiesTransport?.close();
@@ -163,11 +230,13 @@ if (embedded) {
             if (!configured) {
                 configured = true; settings(); applyResize(); showStats(perf);
             }
+            useVideoCursor();
         } else if (['disconnected', 'error'].includes(event.detail)) {
             connected = false; notify('connection_state', 'disconnected');
         } else if (event.detail === 'connecting') {
             connected = false; notify('connection_state', 'connecting');
         }
+        syncCursorBoundary();
     });
     window.addEventListener('selkies-stream-stats', renderStats);
     window.addEventListener('message', event => {
@@ -234,5 +303,8 @@ if (embedded) {
             notify('idle_session_timeout', 'Idle session timeout exceeded'); stop('Idle timeout');
         }
     }, 1000);
-    window.addEventListener('unload', () => clearInterval(idleTimer));
+    window.addEventListener('unload', () => {
+        clearInterval(idleTimer);
+        connected = false; syncCursorBoundary();
+    });
 }

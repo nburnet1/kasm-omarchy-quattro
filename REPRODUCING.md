@@ -113,7 +113,11 @@ not restart the desktop or change the workspace widget implementation.
 
 ## Known follow-up
 
-Duplicate local/remote cursors in the Mac Kasm client remain to be investigated.
-Do not interpret this source snapshot as a cursor fix or a complete Designer
-project-rendering certification. Existing automated adapter checks and their
-scope are documented in `SELKIES-KASM.md`.
+The video-only/transparent-local-cursor baseline was confirmed by the user to
+remove duplicate pointers across Mac window focus changes. It has slight
+video-round-trip pointer latency. Its separate image digest and test scope are
+recorded in `SELKIES-KASM.md`. Further experiments aim to exclude the video
+cursor reliably and restore immediate client-side cursor movement.
+
+The setup is not a complete Designer project-rendering certification. Existing
+automated adapter checks and their scope are documented in `SELKIES-KASM.md`.

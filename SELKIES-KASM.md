@@ -89,8 +89,10 @@ means higher quality):
 | --- | ---: | ---: | ---: | ---: | ---: |
 | Selkies constant-quality index | 40 | 30 | 22 | 12 | 5 |
 
-Defaults are 60 FPS, index 5, full-color 4:4:4 requested, and a three-frame
-WebSocket backpressure queue. The actual decoder/profile is visible in the stats
+Defaults are 60 FPS, index 5, and full-color 4:4:4 requested. The configured
+`backpressure_queue_size=3` is used for Selkies audio buffering; video has its own
+ACK/rate-driven backpressure logic, not a fixed three-frame queue.
+The actual decoder/profile is visible in the stats
 overlay; neither the quality setting nor 4:4:4 means pixel-exact lossless.
 The external-compositor/NVENC path was checked at runtime in the browser tests.
 
@@ -323,3 +325,49 @@ confirmed the 1–5 buttons returned. No widget implementation change was needed
 The repeatable Designer helper and post-stow plugin refresh now live in
 [omarchy-dotfiles](https://github.com/nburnet1/omarchy-dotfiles). See
 [REPRODUCING.md](REPRODUCING.md) for the combined setup and persistence scope.
+
+## Verified single-video-cursor baseline
+
+The user reported simultaneous local/remote pointers in the Mac Kasm client.
+Switching from browser CSS cursors to Selkies' canvas sprite alone did not fix
+it. A small displayed-video crop still showed a pointer with the observing
+client's cursor canvas hidden, so adding a separate visible client cursor was
+not suitable for this capture path.
+
+The working trial uses one **video-rendered cursor**:
+
+- Disable native browser-cursor mode through Selkies' settings API.
+- Request `SET_NATIVE_CURSOR_RENDERING,1` once streaming starts and after pointer
+  unlock; keep the native client cursor canvas visually hidden.
+- Use a transparent 32×32 PNG as the local cursor over the stream document and
+  parent iframe. Plain `cursor:none` initially worked, but after switching Mac
+  windows the local pointer returned until the user crossed Kasm's control panel.
+  The transparent image fixed that focus/re-entry case in workstation testing.
+- Refresh the stream boundary on focus, page show, pointer entry, and visibility
+  recovery. An element-scoped style observer keeps native input handlers from
+  replacing the transparent cursor. Restore the parent's original cursor style
+  on disconnect/unload. Kasm controls retain their normal pointer.
+
+The user confirmed one cursor across window switches, with slight pointer lag.
+That lag follows the video round trip; a video-rendered pointer cannot provide
+the immediate movement of a local cursor. Low-latency decode and NVENC's
+ultra-low-latency/no-lookahead configuration are already in use. The cursor work
+does not introduce an additional video buffer or change stream quality.
+
+`tests/verify-selkies-browser.py` checks the suppressed canvas, transparent cursor
+on both iframe boundaries, focus/reset recovery, and usable control pointers,
+alongside the existing adapter tests. Browser regressions passed after the final
+transparent-cursor change. Host auth/input/audio checks passed for the video-only
+cursor implementation before the final frontend-only focus refinements.
+
+```text
+kasm-omarchy-quattro:4.5.0-selkies-cursor-test
+sha256:3309ec59296f7eaf5bf3f0dacf4aa2a2a79014e5df36a2550e5cdc47dc4bbae3
+```
+
+`omarchy-selkies-transparent-cursor-cache` retains this trial image. The live
+session received revisioned frontend assets without restarting its desktop;
+the session's image tag remains the earlier environment candidate. Original
+adapter source is backed up at `/tmp/opencode/selkies-kasm-before-cursor.js` on
+the host. This is the verified rollback baseline for experiments with cursor-free
+capture and immediate client-side cursor rendering.
