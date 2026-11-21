@@ -50,8 +50,8 @@ if (embedded) {
         mac_cmd_as_ctrl: false, clipboard_in_enabled: clipIn, clipboard_out_enabled: clipOut,
         clipboard_seamless: allowed('clipboard_seamless'),
         use_css_scaling: !['true', '1'].includes(query.get('enable_hidpi')),
-        // Hide the browser pointer. The captured-video cursor is the sole
-        // pointer; suppress Selkies' separate canvas sprite below as well.
+        // Draw the remote sprite locally; use a transparent OS cursor to keep
+        // Mac/Electron window-focus recovery independent of cursor:none.
         use_browser_cursors: false,
     };
     // Apply the dashboard's clipboard policy before the native clipboard sync starts.
@@ -60,13 +60,12 @@ if (embedded) {
     }
 
     // A real transparent cursor avoids Electron/macOS losing cursor:none's
-    // hidden state when switching windows, while the video supplies the sprite.
+    // hidden state when switching windows, while Selkies paints the local sprite.
     const invisibleCursor = 'url("data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAACAAAAAgCAYAAABzenr0AAAAGklEQVR4nO3BAQEAAACCIP+vbkhAAQAAAO8GECAAARlDNO4AAAAASUVORK5CYII=") 0 0, none';
     const style = document.createElement('style');
     style.textContent = `
         #root, #touch-gamepad-host { display:none !important; }
         html.kasm-selkies-streaming, html.kasm-selkies-streaming body { cursor:${invisibleCursor} !important; }
-        .kasm-selkies-video-cursor { visibility:hidden !important; }
         #kasm-selkies-stats, #kasm-selkies-keys {
             position:fixed;z-index:2147483647;background:#171923e8;color:#eee;
             font:12px/1.5 monospace;padding:9px;border:1px solid #666;border-radius:6px;
@@ -195,18 +194,17 @@ if (embedded) {
         if (!document.hidden) syncCursorBoundary();
     });
 
-    function useVideoCursor() {
+    function useLocalCursor() {
         const input = window.webrtcInput;
         if (!connected || !input) return;
         syncCursorBoundary();
-        input.cursorDiv.classList.add('kasm-selkies-video-cursor');
-        input.send('SET_NATIVE_CURSOR_RENDERING,1');
+        input.send('SET_NATIVE_CURSOR_RENDERING,' + (document.pointerLockElement ? '1' : '0'));
     }
 
     document.addEventListener('pointerlockchange', () => {
-        // The native handler turns video cursor painting off on unlock. Apply
-        // this adapter's single-video-cursor policy after that handler finishes.
-        if (!document.pointerLockElement) queueMicrotask(useVideoCursor);
+        // Let native pointer lock use a video cursor while locked, then restore
+        // separate client-side rendering after the native unlock handler.
+        if (!document.pointerLockElement) queueMicrotask(useLocalCursor);
     });
 
     function stop(reason = 'Disconnected') {
@@ -230,7 +228,7 @@ if (embedded) {
             if (!configured) {
                 configured = true; settings(); applyResize(); showStats(perf);
             }
-            useVideoCursor();
+            useLocalCursor();
         } else if (['disconnected', 'error'].includes(event.detail)) {
             connected = false; notify('connection_state', 'disconnected');
         } else if (event.detail === 'connecting') {

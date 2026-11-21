@@ -1,59 +1,80 @@
 # Omarchy Quattro for Kasm
 
-The current working candidate streams a GPU-rendered Omarchy/Hyprland desktop
-directly through **Selkies/NVENC**, integrated with Kasm authentication, controls,
-clipboard, and audio. Start with [REPRODUCING.md](REPRODUCING.md) for the image
-build, workspace configuration, personal dotfiles, and verified Designer setup.
-See [SELKIES-KASM.md](SELKIES-KASM.md) for adapter design and verification.
+Run the Omarchy desktop in a Kasm workspace, with a GPU-rendered Hyprland
+session streamed to your browser through Selkies and NVIDIA NVENC.
 
-The following notes document the earlier KasmVNC baseline and initial prototype.
+**[Getting started →](GETTING-STARTED.md)** — requirements, image setup, workspace
+configuration, first launch, and troubleshooting.
 
-**Current shipping profile:** `kasm-omarchy-quattro:4.5.0-essentials` is the tested expected-app baseline. VS Code is excluded; user/admin extensions are described in [ADDONS.md](ADDONS.md). See [QUATTRO.md](QUATTRO.md) for the current build/run/verification instructions. The notes below describe earlier iterations.
+## What you get
 
-**Current release:** the tested image now contains the official Omarchy **4.5.0** runtime and settings packages (`4.5.0-3`). Use `kasm-omarchy-quattro:4.5.0`, or the existing `quattro-dev` alias used by the Kasm workspace. See [QUATTRO.md](QUATTRO.md) for verification and launch details.
+- The complete **162-entry upstream Omarchy default package set**.
+- Direct Wayland capture and zero-copy NVENC H.264 streaming.
+- Fast local cursor movement with native cursor shapes and Mac focus recovery.
+- Remote desktop resizing, fixed resolutions, and local viewer scaling.
+- Kasm authentication, keyboard controls, clipboard, and browser audio output.
+- Working wallpaper selection, bar transparency gestures, screenshots, and
+  screen recording.
+- **F18 → Super**, plus Ctrl-based shortcuts when your host captures Super/Command.
 
-**Update:** The direct-container Quattro prototype now renders Hyprland, Omarchy Quickshell, the menu, and a working terminal using the host NVIDIA GPU. See [QUATTRO.md](QUATTRO.md) for the tested image, launch commands, architecture, and limitations. The notes below describe the earlier attempt, before the headless render-node shim and WayVNC bridge were implemented.
+The tested stack is Omarchy **4.5.0-3**, Hyprland **0.57.2**, Aquamarine
+**0.16.0**, Selkies **2.2.1**, and pixelflux **2.2.3**. Host verification used
+Kasm **1.19.0-rolling**, an NVIDIA **Quadro P1000**, and driver **580.178.04**.
 
-## Can you "point the Omarchy ISO" to Kasm?
+## Quick start
 
-Not directly.
+Release **4.5.0-1** packages Omarchy **4.5.0**, revision **1** of this Kasm
+integration. The upstream Arch package revision (`4.5.0-3`) is separate.
 
-- **Omarchy ISO** (`omarchy-*.iso`) is a bootable installer/live image for bare metal or VMs (boots via firmware/bootloader, runs install/provisioning against disks/hardware). Docker/Kasm workspaces run containers from OCI/Docker images, not bootable ISOs.
-- **Possible indirect paths (not implemented here):** boot the ISO in QEMU/Proxmox/VMware for a real Omarchy install; or extract the live rootfs (e.g. `arch/x86_64/airootfs.sfs` from the ISO) and `docker import` it as a base, then retrofit Kasm runtime. Even then, Omarchy Quattro is **Hyprland + Quickshell (Wayland-first)** while Kasm streaming is typically **KasmVNC/Xvnc (X11)**, so the full Quattro shell is unlikely to work without major adaptation.
-- **Bottom line:** no simple "point ISO to Kasm" switch; a custom image/build is required, and Wayland/Hyprland-in-Kasm is the core technical blocker for true Quattro fidelity.
-
-## What this build tries
-
-- Arch Linux base (`archlinux:base-devel`)
-- Installs **KasmVNC** by extracting upstream `.deb` (best-effort; no official Arch/Kasm core)
-- Copies Kasm common startup scripts from `kasmtech/workspaces-core-images` into `/dockerstartup`
-- Clones `basecamp/omarchy` (`quattro`) into `/opt/omarchy` and default profile
-- Attempts to install Hyprland/Quickshell-related packages via pacman
-- Uses `custom_startup.sh` to try launching Hyprland (experimental) with fallback to xterm/openbox
-
-## Build
-
-The required Kasm core startup inputs are committed under `src/common/`:
-
-```bash
-docker build -t kasm-omarchy-quattro:experimental .
+```text
+ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
 ```
 
-Run (manual test):
+Pull the image on your Kasm agent:
 
 ```bash
-docker run --rm -it --shm-size=512m -p 6901:6901 -e VNC_PW=password kasm-omarchy-quattro:experimental
-# then open https://localhost:6901 (kasm_user / password)
+docker pull ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
 ```
 
-## Known gaps / likely failures
+The package is private; authenticate with a GitHub account that has access.
+See [image setup](GETTING-STARTED.md#1-make-the-image-available) for credentials,
+source builds, and image transfer.
 
-1. **KasmVNC on Arch:** extracted from Ubuntu package; shared lib/perl/dependency mismatches may prevent `vncserver`/`kasmvncpasswd` from running.
-2. **Kasm service binaries:** upstream core images include helper binaries (`kasm_upload_server`, audio/gamepad/webcam/printer bridges, jsmpeg, etc.) not present here; `vnc_startup.sh` may error if it assumes them without guards.
-3. **Wayland vs KasmVNC:** Quattro’s Quickshell/Hyprland session is not a drop-in X11 WM under Xvnc; expect fallback or no usable desktop.
-4. **Omarchy installer assumptions:** full `omarchy-install` targets provisioned systems (systemd, boot, hardware, user creation) and is not run.
-5. **Package availability/names:** Arch repo package names/sets may differ from Omarchy ISO mirror expectations.
+1. Make the image available on the Kasm agent that will run the workspace.
+2. Clone your working NVIDIA-enabled Kasm workspace and set its **Docker Image**
+   to the tag above. Keep its GPU allocation and render-node mapping.
+3. Launch a **new session** and choose **Remote resizing** in the client.
+4. Open a terminal with **Ctrl+Shift+Enter** or **F18+Enter**.
 
-## Starting-point image inspected
+For a new workspace, follow the [step-by-step setup](GETTING-STARTED.md#2-configure-the-kasm-workspace).
+Save your work before ending a session; reconnecting to an existing container
+does not load an updated image.
 
-`scopey/kasm-arch-omarchy-minimal:1.0` (Arch 20250810, amd64): has `tigervnc`, `networkmanager`, `dbus`, `pipewire`, `kasm-user`, but **no KasmVNC/Kasm `/dockerstartup`**, **no Omarchy files**, `CMD ["bash"]`, root user — not usable in Kasm and not Quattro.
+## Documentation
+
+| Guide | Use it for |
+| --- | --- |
+| [Getting started](GETTING-STARTED.md) | First workspace, everyday controls, updates, persistence, troubleshooting |
+| [Building and reproducing](REPRODUCING.md) | Source build chain, parent images, optional personal dotfiles and Ignition Designer setup |
+| [Full desktop profile](FULL-KASM.md) | Package inventory, tested image ID, verification results, resize and double-click fixes |
+| [Selkies/Kasm integration](SELKIES-KASM.md) | Streaming architecture, supported dashboard controls, cursor implementation, regression tests |
+| [Application addons](ADDONS.md) | Derived images and user-installed applications |
+| [Earlier KasmVNC implementation](QUATTRO.md) | Historical essentials profile and VNC bridge |
+| [Earlier noVNC experiment](NOVNC-EXPERIMENT.md) | Historical direct-streaming prototype |
+
+## Scope
+
+This is an experimental **Linux x86-64 / NVIDIA** workspace image. The desktop
+uses the normal Kasm container lifecycle and its existing GPU access. It does
+not require systemd as PID 1, additional container capabilities, a custom host
+AppArmor profile, or a separate desktop password.
+
+The full package set is installed, but host power/storage controls and system
+services such as Docker Engine, Bluetooth, and NetworkManager are not equivalent
+to running Omarchy on bare metal. Microphone, webcam, printer, and file-transfer
+dashboard integrations are not bridged. See the
+[integration support table](SELKIES-KASM.md#supported-dashboard-integration)
+for the complete list.
+
+Personal dotfiles and Ignition Designer are optional. The image provides a
+usable upstream-default desktop without them.

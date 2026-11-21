@@ -12,7 +12,8 @@ RUN pacman -S --noconfirm --needed wayvnc jq inotify-tools imagemagick fltk1.3 q
     && fc-cache -f
 COPY scripts/headless-render-node.cpp /tmp/headless-render-node.cpp
 RUN test "$(pkg-config --modversion aquamarine)" = "0.16.0" \
-    && g++ -shared -fPIC /tmp/headless-render-node.cpp -lEGL -o /usr/local/lib/omarchy-headless-render-node.so
+    && g++ -std=c++23 -shared -fPIC /tmp/headless-render-node.cpp $(pkg-config --cflags pixman-1 libdrm) \
+       -lEGL -lGLESv2 -laquamarine -o /usr/local/lib/omarchy-headless-render-node.so
 # Kasm supplies en_US.UTF-8 to workspace sessions.
 RUN localedef -i en_US -f UTF-8 en_US.UTF-8 && pacman -S --noconfirm --needed xorg-xrandr
 RUN pacman -S --noconfirm --needed \

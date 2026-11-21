@@ -1,0 +1,18 @@
+# syntax=docker/dockerfile:1
+# Complete upstream package set on the verified ordinary Kasm runtime.
+ARG BASE_IMAGE=kasm-omarchy-quattro:4.5.0-selkies-local-cursor-test
+FROM ${BASE_IMAGE}
+USER root
+COPY --chmod=755 scripts/install-full-kasm.sh /usr/local/bin/omarchy-install-full-kasm
+RUN --mount=type=cache,id=omarchy-full-kasm-pacman,target=/var/cache/pacman/pkg,sharing=locked \
+    /usr/local/bin/omarchy-install-full-kasm
+COPY --chmod=755 scripts/start-headless.sh /dockerstartup/custom_startup.sh
+COPY --chmod=755 scripts/start-audio.sh /dockerstartup/start-audio.sh
+COPY --chmod=755 scripts/start-selkies.sh /usr/local/bin/omarchy-start-selkies
+COPY scripts/headless-render-node.cpp scripts/wayland-input-timestamps.cpp /tmp/
+RUN test "$(pkg-config --modversion aquamarine)" = "0.16.0" \
+    && g++ -std=c++23 -shared -fPIC /tmp/headless-render-node.cpp /tmp/wayland-input-timestamps.cpp $(pkg-config --cflags pixman-1 libdrm) \
+       -lEGL -lGLESv2 -laquamarine -lwayland-server -ldl -o /usr/local/lib/omarchy-headless-render-node.so
+ENV OMARCHY_DESKTOP_PROFILE=full
+LABEL org.omarchy.kasm.profile="full-packages-standard-runtime"
+USER 1000

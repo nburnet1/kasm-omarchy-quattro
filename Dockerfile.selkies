@@ -9,12 +9,19 @@ COPY scripts/selkies-kasm.js /usr/local/share/omarchy-kasm/selkies-kasm.js
 COPY scripts/selkies-disconnected.html /usr/local/share/omarchy-kasm/selkies-disconnected.html
 RUN /opt/selkies/bin/python /tmp/install-selkies-integration.py
 COPY --chmod=755 scripts/run-selkies.py /usr/local/bin/omarchy-run-selkies
+COPY scripts/headless_cursor.py /usr/local/bin/headless_cursor.py
 COPY --chmod=755 scripts/start-selkies.sh /usr/local/bin/omarchy-start-selkies
 COPY --chmod=755 scripts/xwayland-env.py /usr/local/bin/omarchy-xwayland-env
 COPY --chmod=755 scripts/import-session-env.py /usr/local/bin/omarchy-import-session-env
 COPY --chmod=755 scripts/uwsm-app /usr/local/bin/uwsm-app
 COPY --chmod=755 scripts/start-headless.sh /dockerstartup/custom_startup.sh
+COPY scripts/headless-render-node.cpp /tmp/headless-render-node.cpp
+COPY scripts/wayland-input-timestamps.cpp /tmp/wayland-input-timestamps.cpp
+RUN test "$(pkg-config --modversion aquamarine)" = "0.16.0" \
+    && g++ -std=c++23 -shared -fPIC /tmp/headless-render-node.cpp /tmp/wayland-input-timestamps.cpp $(pkg-config --cflags pixman-1 libdrm) \
+       -lEGL -lGLESv2 -laquamarine -lwayland-server -ldl -o /usr/local/lib/omarchy-headless-render-node.so
 ENV OMARCHY_STREAM_BACKEND=selkies \
+    AQ_HEADLESS_VIRTUAL_CURSOR=1 \
     NVIDIA_DRIVER_CAPABILITIES=graphics,utility,display,video
 LABEL org.omarchy.streaming="selkies-kasm-experimental" \
       org.omarchy.selkies.version="2.2.1"

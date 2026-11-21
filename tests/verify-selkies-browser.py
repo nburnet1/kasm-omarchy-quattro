@@ -63,8 +63,8 @@ with sync_playwright() as playwright:
         const input = window.webrtcInput;
         return input && !input.use_browser_cursors && input._cursorImageBitmap
             && getComputedStyle(input.element).cursor.startsWith('url("data:image/png;base64,')
-            && input.cursorDiv.classList.contains('kasm-selkies-video-cursor')
-            && getComputedStyle(input.cursorDiv).visibility === 'hidden';
+            && getComputedStyle(input.cursorDiv).display !== 'none'
+            && getComputedStyle(input.cursorDiv).visibility === 'visible';
     }""", timeout=15000)
     assert page.locator('#iframe-id').evaluate("e => getComputedStyle(e).cursor.startsWith('url(\"data:image/png;base64,')")
     # Exercise focus/entry recovery and a native context's cursor reset without
@@ -79,7 +79,21 @@ with sync_playwright() as playwright:
     assert page.locator('#iframe-id').evaluate("e => getComputedStyle(e).cursor.startsWith('url(\"data:image/png;base64,')")
     frame.evaluate("window.webrtcInput.element.style.cursor = 'none'")
     frame.wait_for_function("getComputedStyle(window.webrtcInput.element).cursor.startsWith('url(\"data:image/png;base64,')")
-    print('PASS: stream hides both browser and canvas pointers for the video-only cursor', flush=True)
+    # Local cursor motion must not depend on a server echo. Drop only pointer
+    # sends briefly, move the mouse, and check the client sprite immediately.
+    frame.evaluate("""() => {
+        const input = window.webrtcInput;
+        input._cursorTestSend = input.send;
+        input.send = function(message, ...args) {
+            if (/^m2?,/.test(message)) return;
+            return input._cursorTestSend.call(this, message, ...args);
+        };
+    }""")
+    before_cursor = frame.evaluate('window.webrtcInput.cursorDiv.style.transform')
+    page.mouse.move(350, 230)
+    frame.wait_for_function('before => window.webrtcInput.cursorDiv.style.transform !== before', arg=before_cursor)
+    frame.evaluate("window.webrtcInput.send = window.webrtcInput._cursorTestSend; delete window.webrtcInput._cursorTestSend")
+    print('PASS: transparent OS cursor, visible local sprite, focus recovery, and motion without server echo', flush=True)
 
     message(page, 'show_keyboard_controls')
     frame.locator('#kasm-selkies-keys').wait_for(state='visible')
@@ -98,12 +112,16 @@ with sync_playwright() as playwright:
     }""")
     frame.wait_for_function('window.stream_stats?.latest?.encoded_fps>=20 && window.stream_stats.latest.encoded_fps<=35', timeout=15000)
     message(page, 'set_resolution', value_x=1024, value_y=768)
+    dynamic = frame.evaluate('window.enable_resize !== false')
+    expected = '1024x768' if dynamic else '1280x800'
+    frame.wait_for_function('s=>window.stream_client?.resolution===s', arg=expected)
     message(page, 'resize', value='scale')
     page.wait_for_timeout(300)
-    assert frame.evaluate('window.stream_client.resolution') == '1280x800'
+    assert frame.evaluate('window.stream_client.resolution') == expected
     message(page, 'resize', value='off')
     message(page, 'resize', value='remote')
-    print('PASS: keyboard controls, stats, quality/FPS, fixed native resolution and local scaling', flush=True)
+    frame.wait_for_function("window.stream_client?.resolution==='1280x800'")
+    print('PASS: keyboard controls, stats, quality/FPS, resolution controls and local scaling', flush=True)
 
     frame.locator('#overlayInput').click(position={'x': 300, 'y': 200})
     page.keyboard.press('Control+Shift+Enter')
@@ -155,8 +173,10 @@ with sync_playwright() as playwright:
     page.wait_for_timeout(400)
     assert not page.evaluate("events.some(e=>e.action==='clipboardrx')")
     message(page, 'set_resolution', value_x=1024, value_y=768)
-    page.wait_for_timeout(300)
-    assert frame.evaluate('window.stream_client.resolution') == '1280x800'
+    expected = '1024x768' if frame.evaluate('window.enable_resize !== false') else '1280x800'
+    frame.wait_for_function('s=>window.stream_client?.resolution===s', arg=expected)
+    message(page, 'resize', value='remote')
+    frame.wait_for_function("window.stream_client?.resolution==='1280x800'")
     message(page, 'set_idle_timeout', value=1)
     page.wait_for_function("events.some(e=>e.action==='idle_session_timeout')", timeout=10000)
     frame.wait_for_url('**/selkies-disconnected.html')

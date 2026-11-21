@@ -27,10 +27,11 @@ if [[ ! -e "$HOME/.config/omarchy/kasm-profile-initialized" ]]; then
     mkdir -p "$HOME/.local/state"
     cp -r --update=none /etc/skel/.local/state/. "$HOME/.local/state/"
   fi
-  # Match Omarchy's supported opt-out for optional preinstalled apps/tools.
-  mkdir -p "$HOME/.local/state/omarchy"
-  touch "$HOME/.local/state/omarchy/preinstalls-removed"
-  MISE_OFFLINE=true omarchy-mise-default-tools disable
+  if [[ ${OMARCHY_DESKTOP_PROFILE:-essentials} != full ]]; then
+    # Match Omarchy's supported opt-out for the smaller essentials image.
+    touch "$HOME/.local/state/omarchy/preinstalls-removed"
+    MISE_OFFLINE=true omarchy-mise-default-tools disable
+  fi
   OMARCHY_THEME_HEADLESS=1 omarchy-theme-set 'Tokyo Night'
   touch "$HOME/.config/omarchy/kasm-profile-initialized"
 fi
@@ -86,6 +87,16 @@ package.preload["default.hypr.autostart"] = function() end
 dofile(os.getenv("HOME") .. "/.config/hypr/hyprland.lua")
 dofile(os.getenv("XDG_RUNTIME_DIR") .. "/kasm-monitor.lua")
 dofile("/usr/local/share/omarchy-kasm/bindings.lua")
+if os.getenv("OMARCHY_STREAM_BACKEND") == "selkies" and os.getenv("OMARCHY_DYNAMIC_RESIZE") ~= "0" then
+  -- Output-management changes are applied during render prechecks. An idle
+  -- headless desktop otherwise leaves the request pending until capture times
+  -- out. Keep its render clock active even when no application damages pixels.
+  hl.config({debug = {vfr = false}})
+end
+if os.getenv("AQ_HEADLESS_VIRTUAL_CURSOR") == "1" then
+  -- The virtual plane uses a render-node GBM buffer, not a DRM dumb cursor BO.
+  hl.config({cursor = {no_hardware_cursors = 0, use_cpu_buffer = 0}})
+end
 LUA
 
 export LD_LIBRARY_PATH="/usr/lib/x86_64-linux-gnu${LD_LIBRARY_PATH:+:$LD_LIBRARY_PATH}"
@@ -101,9 +112,14 @@ trap 'exit 0' TERM INT
 instance=''
 for ((attempt=0; attempt<100; attempt++)); do
   kill -0 "$hypr_pid" || { printf 'Hyprland exited. See %s/hyprland.log\n' "$logdir" >&2; exit 1; }
-  # start-hyprland owns the compositor child. This runtime directory is private
-  # to our session, so its first instance is the compositor we just launched.
-  instance=$(hyprctl instances -j | jq -r '.[0].instance // empty' 2>/dev/null || true)
+  # A restarted container can retain old instance directories whose PID has
+  # been reused. Require responsive IPC instead of trusting the first entry.
+  while IFS= read -r candidate; do
+    if hyprctl -i "$candidate" -j version >/dev/null 2>&1; then
+      instance=$candidate
+      break
+    fi
+  done < <(hyprctl instances -j | jq -r '.[].instance' 2>/dev/null || true)
   [[ -z $instance ]] || break
   sleep 0.2
 done
@@ -118,6 +134,11 @@ for ((attempt=0; attempt<100; attempt++)); do
 done
 [[ -S $event_socket ]] || { printf 'Timed out waiting for Hyprland event socket.\n' >&2; exit 1; }
 hyprctl output create headless "$output_name"
+if [[ ${AQ_HEADLESS_VIRTUAL_CURSOR:-0} == 1 ]]; then
+  # Retry the cursor plane after the output/allocator is ready. The first
+  # cursor image can be requested while the initial render context is active.
+  hyprctl setcursor "$XCURSOR_THEME" "$XCURSOR_SIZE"
+fi
 if [[ $stream_backend != kasmvnc ]]; then
   # hl.env changes apply to compositor-launched children, not this original
   # supervisor. Import that actual environment before launching Quickshell.

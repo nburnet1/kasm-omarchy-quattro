@@ -1,10 +1,11 @@
 #!/opt/selkies/bin/python
 """Pinned Selkies server integration: Kasm-compatible routes and F18 mapping."""
 from importlib.metadata import version
+import os
 
 assert version('selkies') == '2.2.1'
 from selkies.input_handler import WebRTCInput
-from selkies.websockets_mode import DataStreamingServer
+from selkies.websockets_mode import DataStreamingServer, SelkiesStreamingApp
 import selkies.stream_server as stream_server
 
 dispatch = WebRTCInput._dispatch_message
@@ -33,6 +34,10 @@ def kasm_register_routes(self, api_prefix, router):
 
 
 DataStreamingServer.register_routes = kasm_register_routes
+
+if os.environ.get('AQ_HEADLESS_VIRTUAL_CURSOR') == '1':
+    from headless_cursor import install_cursor_bridge
+    install_cursor_bridge(DataStreamingServer, SelkiesStreamingApp)
 
 from selkies.__main__ import main
 

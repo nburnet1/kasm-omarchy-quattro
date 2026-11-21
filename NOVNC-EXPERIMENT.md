@@ -1,5 +1,9 @@
 # Direct WayVNC streaming experiment
 
+> **Historical experiment:** the current full-desktop image uses Selkies/NVENC.
+> Start with [Getting started](GETTING-STARTED.md) for the supported setup path.
+> The tags and instructions below describe the earlier noVNC candidate.
+
 ## Kasm dashboard candidate
 
 Use **`kasm-omarchy-quattro:4.5.0-novnc-kasm-test`** for the dashboard integration

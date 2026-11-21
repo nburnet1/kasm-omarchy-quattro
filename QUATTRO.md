@@ -1,5 +1,10 @@
 # Omarchy Quattro essentials for Kasm
 
+> **Historical guide:** this page records the earlier KasmVNC/WayVNC essentials
+> implementation. For the current full-desktop Selkies image, start with
+> [Getting started](GETTING-STARTED.md). Its current image ID and test results are
+> in [FULL-KASM.md](FULL-KASM.md).
+
 ## Downstream maintenance policy
 
 Keep upstream Omarchy packages, configuration, and application launchers

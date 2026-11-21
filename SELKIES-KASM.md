@@ -3,7 +3,7 @@
 ## Candidate image
 
 ```text
-kasm-omarchy-quattro:4.5.0-selkies-repro-test
+ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
 ```
 
 The image runs the existing Omarchy 4.5.0 desktop with Selkies 2.2.1 / pixelflux
@@ -16,13 +16,18 @@ the container. The corrected client uses `selkies-status.json` and `websockify`,
 with matching authenticated server aliases and revisioned JS filenames so old
 Electron/browser caches cannot keep the rejected endpoint paths.
 
-The recovery build uses **fixed native resolution at launch**, matching the
-standalone configuration that worked in workstation testing. It reads Kasm's
-`VNC_RESOLUTION`, or an explicit `OMARCHY_RESOLUTION` override, and gives
-Hyprland and Selkies that same size. Dynamic output resizing is disabled:
-follow-up testing found persistent Wayland output-management overrides could
-prevent the requested host mode from taking effect and stall capture. Local
-fit/scaling is supported; start a new session to change remote dimensions.
+The current build enables **dynamic remote resolution**. `VNC_RESOLUTION`, or
+an explicit `OMARCHY_RESOLUTION`, selects the initial compositor mode. With
+Kasm's remote-resize mode selected, the desktop then follows the viewer size.
+Fixed dashboard resolutions and local fit/scaling modes are supported too.
+The earlier recovery images deliberately locked resolution after a resizing
+failure; the current candidate removes that lock and verifies both realized
+Hyprland geometry and advancing decoded NVENC frames through grow/shrink,
+manual-size, local-scale, and config-reload transitions. Set
+`OMARCHY_DYNAMIC_RESIZE=0` to retain launch-size locking when required.
+Dynamic sessions keep Hyprland's render clock active (`debug:vfr=false`) so
+idle headless outputs apply output-management changes promptly. This removes
+idle render suppression; capture remains zero-copy NVENC.
 
 ```text
 Kasm dashboard/proxy → HTTPS 6901 → Selkies → external Hyprland output
@@ -71,8 +76,8 @@ than KasmVNC's legacy `path=.../websockify` query parameter.
 | Text clipboard | Bridges the dashboard clipboard box in both directions; honors URL direction/seamless flags |
 | Stream quality | Maps the five Kasm quality levels to Selkies constant-quality indices |
 | Frame rate | Applies the quality message's `frameRate` between 8 and 60 FPS |
-| Remote sizing | Native dimensions are chosen at session launch from `VNC_RESOLUTION` / `OMARCHY_RESOLUTION`; dynamic resizing is disabled |
-| Fixed-resolution dashboard changes | Ignored while the server's native resolution is locked; change launch resolution and start a new session |
+| Remote sizing | Starts from `VNC_RESOLUTION` / `OMARCHY_RESOLUTION`, then follows viewer dimensions in remote-resize mode |
+| Fixed-resolution dashboard changes | Apply the requested native desktop size and switch to local scaling |
 | Local scaling / no scaling | Selects local fit or native-size rendering without changing remote pixel dimensions |
 | Config reload | The launch output mode remains in the session's runtime monitor config and survives reload |
 | HiDPI | Maps to Selkies' CSS/pixel scaling setting |
@@ -124,8 +129,14 @@ Only the owning `kasm_user` credentials are accepted; `kasm_viewer` is rejected.
 - `scripts/selkies-kasm.js` translates Kasm parent messages to Selkies' native
   messaging API, and reports state to the authenticated dashboard parent.
 - `scripts/run-selkies.py` provides the F18 mapping and authenticated route
-  aliases around the pinned server API. The recovery build does not monkeypatch
-  dynamic Hyprland sizing; both ends keep their fixed launch dimensions.
+  aliases around the pinned server API. Dynamic sizing uses Selkies' native
+  external-compositor path without a custom resize backend.
+- `scripts/wayland-input-timestamps.cpp`, linked into the existing compositor
+  interposer, repairs zero timestamps from the pinned virtual-pointer source.
+  This restores Qt double-click recognition for the desktop wallpaper picker
+  and bar transparency gesture while preserving nonzero client times and the
+  original pointer device/seat. `tests/verify-double-click.py` checks the real
+  shell actions and verifies that single/slow clicks remain separate.
 
 No passwords are embedded in the web client. Native pages, control APIs, and
 streaming sockets require session authentication. Selkies' native bootstrap and
@@ -135,15 +146,18 @@ delivering media.
 
 ## Build
 
+For the full desktop from an available audio parent:
+
 ```bash
-docker build --network host -f Dockerfile.selkies \
-  -t kasm-omarchy-quattro:4.5.0-selkies-repro-test .
+bash scripts/build-selkies.sh
+bash scripts/build-full-kasm.sh
 ```
 
-The existing shipping aliases, original KasmVNC rollback image, noVNC candidate,
-and standalone Selkies measurement container are separate from this image.
-`omarchy-selkies-kasm-image-cache` retains the candidate against unused-image
-pruning using only a read-only, network-disabled sleep process with no GPU.
+If the verified local-cursor parent is already available, only the second
+command is needed. Clean-host builds, tag overrides, and reproducibility limits
+are covered in [REPRODUCING.md](REPRODUCING.md#build-from-source). The current
+verified full-desktop image ID is recorded in [FULL-KASM.md](FULL-KASM.md).
+Historical KasmVNC/noVNC tags identify separate earlier builds.
 
 ## Verification performed
 
@@ -155,7 +169,8 @@ It was a real server connection, not a mocked video or WebSocket:
 - Received dashboard initialization and actual stream-start notifications.
 - Verified NVENC, DMA-BUF/zero-copy, and the WebSocket transport in native telemetry.
 - Changed quality/FPS and checked the native stored choice and measured encode rate.
-- Verified fixed native dimensions remain stable through sizing controls and reload.
+- Verified native dimensions follow remote/manual sizing controls; local scaling
+  preserves the selected native size, and resizing survives config reload.
 - Typed and pasted commands that created actual files inside native Foot.
 - Held F18 across its heartbeat interval and opened a second Foot with Return;
   verified key release by executing another typed command in that terminal.
@@ -371,3 +386,79 @@ the session's image tag remains the earlier environment candidate. Original
 adapter source is backed up at `/tmp/opencode/selkies-kasm-before-cursor.js` on
 the host. This is the verified rollback baseline for experiments with cursor-free
 capture and immediate client-side cursor rendering.
+
+## Local-cursor implementation and baseline
+
+Originally verified on `experiment/local-cursor`, based on rollback commit
+`53e2ce8`; included in the current full-desktop profile.
+
+The compositor-level comparison confirmed the root cause: the original headless
+backend has no cursor plane, so Hyprland draws a software cursor into the shared
+monitor texture. Both `grim` and the stream could therefore include the cursor
+even when capture requested no cursor. Switching client cursor styles cannot
+remove that pointer from the pixels.
+
+### Adapter implementation
+
+- `headless-render-node.cpp` adds an opt-in logical cursor plane to the existing
+  Aquamarine 0.16.0 headless interposer. Only headless outputs participate, and
+  `AQ_HEADLESS_VIRTUAL_CURSOR=1` enables it. It accepts a cursor buffer without
+  drawing it into the desktop texture. Explicit cursor capture remains working.
+- `start-headless.sh` selects GPU cursor buffers and allows this virtual plane
+  in its runtime Lua wrapper. It retries cursor setup after output creation so
+  early renderer initialization cannot leave the cursor on the software path.
+  Packaged Omarchy defaults and user dotfiles remain authoritative elsewhere.
+- The headless plane exports shape/hotspot changes as a private atomic snapshot
+  at `$XDG_RUNTIME_DIR/omarchy-headless-cursor.bin`, mode 0600. The format is a
+  24-byte little-endian header (`OCUR`, width, height, signed hotspot x/y,
+  visibility), followed by straight-alpha RGBA bytes. Dimensions are bounded to
+  512×512. Positions and keyboard data are not exported here.
+- NVIDIA cursor buffers are not necessarily CPU-mappable. Only the small cursor
+  shape is read back through EGL; GL bindings/pack state are restored. The
+  desktop's DMA-BUF/NVENC path remains zero-copy.
+- `headless_cursor.py` supplies those actual external Hyprland shapes to the
+  pinned Selkies server's existing cursor channel and late-join cache. It checks
+  for changed snapshots every 20 ms and PNG-encodes only changed shapes. This was
+  necessary because the internal Selkies compositor's default arrow did not
+  follow text/resize cursor changes in external applications.
+- `selkies-kasm.js` restores the visible local canvas sprite and requests no
+  cursor in the video. The transparent OS cursor/focus-boundary recovery from
+  the rollback baseline is retained. Movement is client-local; shape changes
+  still arrive from the server, as in a conventional remote-desktop client.
+
+`Dockerfile.selkies` builds the pinned interposer, installs the cursor bridge,
+and enables the virtual plane. This is container/session-boundary adaptation;
+Hyprland and Omarchy source/packages are not patched. The SDK ABI/version checks
+remain important when updating upstream.
+
+### Verification and current image
+
+- Existing browser and host adapter checks passed: NVENC/zero-copy stream,
+  input, clipboard, auth, reconnect, fixed dimensions/reload, and native audio.
+- The browser test suppresses pointer sends temporarily and verifies that the
+  local cursor still moves. Focus recovery and normal control-panel pointers
+  remain covered.
+- `tests/verify-cursor-separation.py` compares stable cursor-free captures with
+  explicit cursor-painted captures. Run at startup or with an active test viewer
+  and visible pointer; a disconnected session can intentionally hide its cursor.
+- `tests/verify-cursor-shapes.py DESKTOP_CONTAINER BROWSER_CONTAINER` launches a
+  real Wayland Chromium fixture and verifies distinct arrow, text, and resize
+  images at the streamed client. It uses the same prefix proxy and Playwright
+  environment as the browser regression tests.
+- The user confirmed **fast movement, correct shapes, and Mac window-focus
+  recovery**, using a fresh Kasm session on the final shape-feed build.
+
+```text
+kasm-omarchy-quattro:4.5.0-selkies-local-cursor-test
+sha256:28600ff0ac3e2dd6adf2707685e0219da7a46245bc729253e9cde50e880e6319
+```
+
+`omarchy-selkies-local-cursor-shapes-cache` retains the tested image. The first
+fast-pointer build (`d71492c4…`) lacked the external shape feed; use the digest
+above when reproducing the complete result. Changing the image requires a fresh
+Kasm session, not a viewer reconnect, because the cursor plane lives inside the
+compositor process.
+
+Rollback image: `kasm-omarchy-quattro:4.5.0-selkies-cursor-test`, digest
+`3309ec59…`, retained by `omarchy-selkies-transparent-cursor-cache`. It provides
+the previously verified single video cursor with slight round-trip lag.

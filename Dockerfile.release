@@ -1,0 +1,11 @@
+# Add publication metadata to an already verified runtime without changing files.
+ARG BASE_IMAGE=kasm-omarchy-quattro:4.5.0-1
+FROM ${BASE_IMAGE}
+ARG RELEASE_VERSION=4.5.0-1
+ARG VCS_REF
+LABEL org.opencontainers.image.title="Omarchy Quattro for Kasm" \
+      org.opencontainers.image.description="Complete Omarchy desktop with Hyprland, Selkies/NVENC, and native Kasm integration" \
+      org.opencontainers.image.source="https://github.com/nburnet1/kasm-omarchy-quattro" \
+      org.opencontainers.image.version="${RELEASE_VERSION}" \
+      org.opencontainers.image.revision="${VCS_REF}" \
+      org.omarchy.upstream.version="4.5.0-3"

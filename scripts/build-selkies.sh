@@ -2,7 +2,7 @@
 # Rebuild the current adapter, optionally including its complete parent chain.
 set -euo pipefail
 root=$(dirname "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")")
-image=${SELKIES_IMAGE:-kasm-omarchy-quattro:4.5.0-selkies-repro-test}
+image=${SELKIES_IMAGE:-kasm-omarchy-quattro:4.5.0-selkies-local-cursor-test}
 audio_base=${AUDIO_BASE_IMAGE:-kasm-omarchy-quattro:4.5.0-audio}
 case "${1:-}" in
   --from-scratch)

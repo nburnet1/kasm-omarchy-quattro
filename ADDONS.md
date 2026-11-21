@@ -1,13 +1,19 @@
 # User and administrator addons
 
-The `4.5.0-essentials` base has no VS Code package, executable, shortcut tied to Code, Code profile defaults, or Code-specific startup helper. Neovim is the default editor. Core desktop app selection is declared in `packaging/omarchy-expected-apps.packages`.
+The current full-desktop image is `ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1`.
+It includes the upstream default package set and uses Neovim as its default
+editor. Start with [Getting started](GETTING-STARTED.md) for workspace setup.
+
+The older `4.5.0-essentials` image uses the smaller app list in
+`packaging/omarchy-expected-apps.packages` and excludes VS Code. Its opt-in
+VS Code example is described below.
 
 ## Administrator: derived images
 
 Build a derived image to make an addon available in every fresh Kasm session:
 
 ```dockerfile
-FROM kasm-omarchy-quattro:4.5.0-essentials
+FROM ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
 USER root
 RUN omarchy-pkg-add YOUR_PACKAGE
 USER 1000
@@ -17,7 +23,9 @@ Register the derived image/tag as its own Kasm workspace or use it for the desir
 
 ## Optional VS Code example
 
-An explicitly opt-in example is provided under `addons/vscode/`:
+An explicitly opt-in example for the **older essentials image** is provided
+under `addons/vscode/`. Its Dockerfile names that parent, which must be available
+locally:
 
 ```bash
 docker build -t local/omarchy-vscode:4.5.0 addons/vscode

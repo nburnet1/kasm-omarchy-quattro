@@ -20,10 +20,18 @@ while true; do
   # The custom desktop startup initializes PipeWire asynchronously.
   until pactl info >/dev/null 2>&1; do sleep 0.5; done
   if ! pactl list short sinks | cut -f2 | grep -qx kasm_output; then
-    pactl load-module module-null-sink sink_name=kasm_output \
-      sink_properties=device.description=Kasm_Audio_Output >/dev/null
+    if ! pactl load-module module-null-sink sink_name=kasm_output \
+      sink_properties=device.description=Kasm_Audio_Output >/dev/null; then
+      # PipeWire can answer info before its Pulse modules/session policy are
+      # ready, especially when restoring a profile on container restart.
+      sleep 0.5
+      continue
+    fi
   fi
-  pactl set-default-sink kasm_output
+  if ! pactl set-default-sink kasm_output; then
+    sleep 0.5
+    continue
+  fi
   # Move any applications that started before the virtual sink was ready.
   while read -r input _; do
     pactl move-sink-input "$input" kasm_output || true
