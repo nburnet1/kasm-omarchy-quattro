@@ -1,6 +1,6 @@
 # User and administrator addons
 
-The current full-desktop image is `ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1`.
+The current full-desktop image is built locally as `kasm-omarchy-quattro:4.5.0-1`.
 It includes the upstream default package set and uses Neovim as its default
 editor. Start with [Getting started](GETTING-STARTED.md) for workspace setup.
 
@@ -13,7 +13,7 @@ VS Code example is described below.
 Build a derived image to make an addon available in every fresh Kasm session:
 
 ```dockerfile
-FROM ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
+FROM kasm-omarchy-quattro:4.5.0-1
 USER root
 RUN omarchy-pkg-add YOUR_PACKAGE
 USER 1000

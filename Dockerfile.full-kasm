@@ -14,5 +14,10 @@ RUN test "$(pkg-config --modversion aquamarine)" = "0.16.0" \
     && g++ -std=c++23 -shared -fPIC /tmp/headless-render-node.cpp /tmp/wayland-input-timestamps.cpp $(pkg-config --cflags pixman-1 libdrm) \
        -lEGL -lGLESv2 -laquamarine -lwayland-server -ldl -o /usr/local/lib/omarchy-headless-render-node.so
 ENV OMARCHY_DESKTOP_PROFILE=full
-LABEL org.omarchy.kasm.profile="full-packages-standard-runtime"
+ARG IMAGE_VERSION=4.5.0-1
+LABEL org.omarchy.kasm.profile="full-packages-standard-runtime" \
+      org.opencontainers.image.title="Omarchy Quattro for Kasm" \
+      org.opencontainers.image.source="https://github.com/nburnet1/kasm-omarchy-quattro" \
+      org.opencontainers.image.version="${IMAGE_VERSION}" \
+      org.omarchy.upstream.version="4.5.0-3"
 USER 1000

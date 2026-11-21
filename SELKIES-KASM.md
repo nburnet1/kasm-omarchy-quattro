@@ -3,7 +3,7 @@
 ## Candidate image
 
 ```text
-ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
+kasm-omarchy-quattro:4.5.0-1
 ```
 
 The image runs the existing Omarchy 4.5.0 desktop with Selkies 2.2.1 / pixelflux
@@ -146,15 +146,14 @@ delivering media.
 
 ## Build
 
-For the full desktop from an available audio parent:
+For the full desktop, including its parent stages:
 
 ```bash
-bash scripts/build-selkies.sh
-bash scripts/build-full-kasm.sh
+bash scripts/build.sh
 ```
 
-If the verified local-cursor parent is already available, only the second
-command is needed. Clean-host builds, tag overrides, and reproducibility limits
+If the verified local-cursor parent is already available, use
+`bash scripts/build.sh --reuse-parent`. Build stages, tag overrides, and reproducibility limits
 are covered in [REPRODUCING.md](REPRODUCING.md#build-from-source). The current
 verified full-desktop image ID is recorded in [FULL-KASM.md](FULL-KASM.md).
 Historical KasmVNC/noVNC tags identify separate earlier builds.

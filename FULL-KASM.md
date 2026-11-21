@@ -5,16 +5,15 @@ This page documents the package profile, image identity, and verification.
 
 Release: **4.5.0-1** — Omarchy 4.5.0, Kasm integration revision 1.
 
-Registry image: `ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1` (private).
+Local source-build tag: `kasm-omarchy-quattro:4.5.0-1`. Build it with
+`bash scripts/build.sh`; no prebuilt registry image is published.
 
-Local source-build tag: `kasm-omarchy-quattro:4.5.0-1`.
-
-Verified runtime image ID, before publication metadata:
+Earlier verified runtime image ID:
 `sha256:f202810bb0bc21c25108ac9678ba8d4522ca4ed88ab84b6c435f617036359e6f`.
 
 This runtime was tested as `kasm-omarchy-quattro:4.5.0-full-kasm-test`.
-`Dockerfile.release` adds version/source/revision labels for publication; it
-does not change the verified filesystem, entrypoint, user, or environment.
+Local rebuilds can have different image IDs because of dependency and metadata
+changes. The full-desktop Dockerfile includes source/version labels directly.
 
 This derivative adds the complete **162-entry** output of the packaged
 `omarchy-pkg-defaults x86` command to the verified local-cursor image. It uses
@@ -24,10 +23,16 @@ the image on the existing working workspace and starting a fresh session.
 
 ## Build
 
+For the complete local build:
+
+```bash
+bash scripts/build.sh
+```
+
 With `kasm-omarchy-quattro:4.5.0-selkies-local-cursor-test` available locally:
 
 ```bash
-bash scripts/build-full-kasm.sh
+bash scripts/build.sh --reuse-parent
 ```
 
 `FULL_KASM_BASE_IMAGE` and `FULL_KASM_IMAGE` override the parent and result tags.

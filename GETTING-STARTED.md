@@ -28,42 +28,44 @@ device settings. You only need to change the image and launch a fresh session.
 ## 1. Make the image available
 
 Release **4.5.0-1** means Omarchy 4.5.0 plus revision 1 of this Kasm integration.
-The registry image is:
+The local image tag is:
 
 ```text
-ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
+kasm-omarchy-quattro:4.5.0-1
 ```
 
-### Pull from GitHub Container Registry
+### Build locally
 
-The package is private. Sign in using a GitHub account with access to the
-package. At the password prompt, use a personal access token (classic) with
-`read:packages`, rather than your GitHub account password:
+Build on the Kasm agent or a separate Linux x86-64 Docker host. This repository
+is private, so your GitHub account needs repository access to clone it:
 
 ```bash
-docker login ghcr.io --username YOUR_GITHUB_USERNAME
-docker pull ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
+git clone https://github.com/nburnet1/kasm-omarchy-quattro.git
+cd kasm-omarchy-quattro
+bash scripts/build.sh
 ```
 
-For multi-agent deployments, configure the private registry credentials in Kasm
-so each eligible agent can pull the image. Access to this private source
-repository does not automatically configure Docker or Kasm registry credentials.
+The script builds all parent stages and the complete desktop profile. It prints
+the resulting local image tag when done. The image is distributed as a source
+build; there is no published GHCR image to pull.
+
+Use `bash scripts/build.sh --help` for options, or `--dry-run` to preview the
+commands. `--reuse-parent` skips the parent build when the Selkies parent is
+already present. See [source-build scope](REPRODUCING.md#on-a-clean-build-host)
+for the rolling-dependency and clean-host verification limits.
 
 On the Kasm agent, check whether it is already present:
 
 ```bash
-docker image inspect --format '{{.Id}}' ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
+docker image inspect --format '{{.Id}}' kasm-omarchy-quattro:4.5.0-1
 ```
 
-The verified runtime image ID before publication labels is recorded in
-[FULL-KASM.md](FULL-KASM.md). Publication adds source/version labels without
-changing its filesystem or runtime settings. A Docker image ID is different
-from a registry manifest digest.
+The earlier verified runtime image ID is recorded in [FULL-KASM.md](FULL-KASM.md).
+Local builds can have different image IDs as dependencies and metadata change.
 
-### Use a local build instead
+### Transfer to another agent
 
-The source-build helper produces `kasm-omarchy-quattro:4.5.0-1`. Use that local
-tag in the workspace if you built the image yourself.
+Use the local tag printed by the build script in the workspace configuration.
 
 If the image is on a separate build host, transfer it directly to your agent:
 
@@ -73,10 +75,9 @@ docker image save kasm-omarchy-quattro:4.5.0-1 \
   | ssh USER@KASM_AGENT 'docker image load'
 ```
 
-For source builds, clone this repository and follow the
-[build instructions](REPRODUCING.md#build-from-source). The full-desktop helper
-extends a local Selkies parent image; running `docker build .` alone builds an
-older base stage, not the current desktop.
+The [advanced build instructions](REPRODUCING.md#build-from-source) explain the
+individual stages. Running `docker build .` alone builds an older base stage,
+not the current desktop.
 
 On a multi-agent Kasm deployment, make the image available on each eligible
 agent or restrict the workspace to the agent that has it.
@@ -89,7 +90,7 @@ workspace, or create one with these settings:
 | Setting | Value |
 | --- | --- |
 | Name | `Omarchy Quattro` (or your preferred display name) |
-| Docker Image | `ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1` (or your local build tag) |
+| Docker Image | `kasm-omarchy-quattro:4.5.0-1` (or your custom local build tag) |
 | Architecture | `amd64` / x86-64 |
 | CPU cores | `2` to start |
 | Memory | `4096 MB` to start |
@@ -202,8 +203,9 @@ host-side preference. No host remap is needed for the Ctrl-based shortcuts.
 4. Launch a new session and repeat the first-launch checks.
 
 Release tags identify a specific Kasm integration revision; a later revision
-will use a new tag such as `4.5.0-2`. For an exact registry artifact, Docker also
-supports `ghcr.io/nburnet1/kasm-omarchy-quattro@sha256:MANIFEST_DIGEST`.
+will use a new tag such as `4.5.0-2`. Build the updated source and use the local
+tag printed by the script. Record the Git commit and Docker image ID when
+tracking a particular build.
 Existing persistent homes keep their settings; an earlier essentials profile can retain
 its optional-app/tool opt-outs. A fresh profile is the cleanest way to check
 upstream defaults.
@@ -212,7 +214,7 @@ upstream defaults.
 
 | Symptom | First checks |
 | --- | --- |
-| Image pull is denied | Authenticate to GHCR using a token with `read:packages` and confirm the GitHub account has access to the private package. Configure those credentials in Kasm for agent-side pulls. |
+| Kasm tries to pull the local image and cannot find it | Build or load the image on the selected agent, and use the exact local tag printed by the build script. No GHCR image is published. |
 | Workspace fails to start or shows a blank desktop | Confirm the image is on the selected agent, the GPU is allocated, the render node is mapped, and its group matches the host. Check `hyprland.log` and `selkies.log`. |
 | Resizing only stretches the picture | Select **Remote resizing**, check that `OMARCHY_DYNAMIC_RESIZE` is not `0`, and launch a fresh session on the current image. |
 | Wallpaper/bar double-clicks do nothing | Confirm the current image ID and start a fresh session. Use an empty desktop/bar area. The current build repairs the input timestamps needed by Qt double-click detection. |

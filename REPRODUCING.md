@@ -28,11 +28,29 @@ The build scripts use Docker BuildKit. Network access is needed for Arch,
 Omarchy, Python, and Kasm dependencies. GPU access is needed when running and
 verifying the desktop, not for these image-build commands.
 
+The normal entrypoint builds the entire chain:
+
+```bash
+bash scripts/build.sh
+```
+
+Options:
+
+```bash
+bash scripts/build.sh --tag local/omarchy:my-build
+bash scripts/build.sh --reuse-parent
+bash scripts/build.sh --dry-run
+```
+
+`--reuse-parent` uses an existing Selkies image. `--dry-run` prints the commands
+without contacting Docker. The lower-level scripts below are useful when
+rebuilding or diagnosing individual stages.
+
 ### If you already have the verified Selkies parent
 
 ```bash
 docker image inspect kasm-omarchy-quattro:4.5.0-selkies-local-cursor-test
-bash scripts/build-full-kasm.sh
+bash scripts/build.sh --reuse-parent
 ```
 
 This is the path used for the verified full-desktop candidate. It installs
@@ -50,7 +68,13 @@ bash scripts/build-full-kasm.sh
 
 ### On a clean build host
 
-The complete source build chain is:
+The complete source build chain can be run with one command:
+
+```bash
+bash scripts/build.sh
+```
+
+This runs the following lower-level commands in order:
 
 ```bash
 bash scripts/build-selkies.sh --from-scratch
@@ -68,12 +92,13 @@ Arch repositories and Python transitive dependencies are rolling. The recipes
 pin Omarchy and check compositor/plugin ABIs, so they deliberately fail when
 the installed versions differ. These instructions reproduce the build
 procedure, not a promise of a byte-identical image from future repositories.
-Use the verified image when you need the already-tested artifact.
+Run the desktop verification checks for your local build before relying on it.
 
 ### Image names and overrides
 
 | Script | Default output | Relevant overrides |
 | --- | --- | --- |
+| `scripts/build.sh` | `kasm-omarchy-quattro:4.5.0-1` | `--tag`, `--reuse-parent`, `--dry-run`; parent/image environment overrides below |
 | `scripts/build-selkies.sh` | `kasm-omarchy-quattro:4.5.0-selkies-local-cursor-test` | `SELKIES_IMAGE`, `AUDIO_BASE_IMAGE` |
 | `scripts/build-full-kasm.sh` | `kasm-omarchy-quattro:4.5.0-1` | `FULL_KASM_IMAGE`, `FULL_KASM_BASE_IMAGE` |
 
@@ -91,29 +116,23 @@ The tested stack is Omarchy 4.5.0-3, Hyprland 0.57.2, Aquamarine 0.16.0,
 Selkies 2.2.1, and pixelflux 2.2.3. The complete package profile and dependency
 checks are described in [FULL-KASM.md](FULL-KASM.md#build).
 
-## Publish a verified image
+## Image naming and agent transfer
 
 Release names use `UPSTREAM_VERSION-KASM_REVISION`, for example `4.5.0-1`.
-Increment the Kasm revision for later builds of the same Omarchy version rather
-than replacing an existing release tag.
+Increment the Kasm revision for later builds of the same Omarchy version.
 
-After verifying a runtime image, `Dockerfile.release` adds publication metadata
-without rebuilding or modifying its filesystem. For the initial release:
+Images are built locally rather than downloaded from GHCR. If the build host
+is separate from your Kasm agent, transfer the image over SSH:
 
 ```bash
-docker build -f Dockerfile.release \
-  --build-arg BASE_IMAGE=kasm-omarchy-quattro:4.5.0-1 \
-  --build-arg RELEASE_VERSION=4.5.0-1 \
-  --build-arg VCS_REF="$(git rev-parse HEAD)" \
-  -t ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1 .
-docker push ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
+docker image save kasm-omarchy-quattro:4.5.0-1 \
+  | ssh USER@KASM_AGENT 'docker image load'
 ```
 
-Publishing requires GHCR credentials with `write:packages` and access to the
-package. The source label links the image to this repository, and the revision
-label identifies the committed source used for publication. The package remains
-private; consumers need access and `read:packages` credentials. See
-[Getting started](GETTING-STARTED.md#1-make-the-image-available) for pull setup.
+Replace `USER@KASM_AGENT` with your SSH destination. Load the image onto each
+eligible agent and set the workspace's Docker Image field to that same local
+tag. The full-desktop Dockerfile includes source/version labels; record the Git
+commit and Docker image ID alongside your own builds.
 
 ## Run and verify
 

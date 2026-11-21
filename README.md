@@ -27,18 +27,33 @@ Release **4.5.0-1** packages Omarchy **4.5.0**, revision **1** of this Kasm
 integration. The upstream Arch package revision (`4.5.0-3`) is separate.
 
 ```text
-ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
+kasm-omarchy-quattro:4.5.0-1
 ```
 
-Pull the image on your Kasm agent:
+Build it on your Linux x86-64 Kasm agent or a separate Docker build host:
 
 ```bash
-docker pull ghcr.io/nburnet1/kasm-omarchy-quattro:4.5.0-1
+git clone https://github.com/nburnet1/kasm-omarchy-quattro.git
+cd kasm-omarchy-quattro
+bash scripts/build.sh
 ```
 
-The package is private; authenticate with a GitHub account that has access.
-See [image setup](GETTING-STARTED.md#1-make-the-image-available) for credentials,
-source builds, and image transfer.
+The script builds the parent stages and complete desktop, then prints the local
+image tag to use in Kasm. It does not upload the image. This repository is
+private, so cloning requires a GitHub account with repository access.
+
+To choose a different tag or reuse an existing Selkies parent:
+
+```bash
+bash scripts/build.sh --tag local/omarchy:my-build
+bash scripts/build.sh --reuse-parent
+```
+
+Allow room for the approximately **10.2 GB uncompressed image**, parent stages,
+and build cache. The clean-host recipe uses rolling dependencies and has not
+been verified end to end; see [build scope](REPRODUCING.md#on-a-clean-build-host).
+See [image setup](GETTING-STARTED.md#1-make-the-image-available) for agent transfer
+and [build options](REPRODUCING.md#build-from-source) for more details.
 
 1. Make the image available on the Kasm agent that will run the workspace.
 2. Clone your working NVIDIA-enabled Kasm workspace and set its **Docker Image**
